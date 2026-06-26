@@ -182,11 +182,28 @@ RemoteClient::recv()
         }
         else if ( ret > 0 )
         {
-            processMsg( buffer, ret );
+            // processMsg( buffer, ret );
+            if ( buffer[ ret - 1 ] != 0 )
+            {
+                buffer[ ret ] = 0;
+            }
+            unprocessed_messages.push_back(buffer);
         }
         return ret;
     }
     return -1;
+}
+
+void
+RemoteClient::processUnprocessedMessages()
+{
+    for (auto msg : unprocessed_messages) {
+        size_t size = msg.length() + 1;
+        char buffer[MaxMesg];
+        std::snprintf(buffer, size, "%s", msg.c_str());
+        processMsg(buffer, size);
+    }
+    unprocessed_messages.clear();
 }
 
 void

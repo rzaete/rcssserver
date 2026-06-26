@@ -125,6 +125,7 @@ protected:
 
 private:
     std::shared_ptr< SocketDesc > M_handle;
+    Addr M_peer;  // cached peer address (set on connect() or once at fd-ctor for pre-connected sockets); avoids repeated getpeername
 };
 
 }

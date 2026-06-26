@@ -27,6 +27,7 @@
 #include <algorithm>
 #include <memory>
 #include <cstdlib>
+#include <cpptrace/cpptrace.hpp>
 
 class DefaultRNG {
 public:
@@ -38,6 +39,8 @@ private:
     DefaultRNG() = default;
 
 public:
+    static inline int rand_counter = 0;
+
     static
     //DefaultRNG & instance()
     Engine & instance()
@@ -50,7 +53,9 @@ public:
     //DefaultRNG & instance( const std::mt19937::result_type & value )
     Engine & seed( const Engine::result_type & value )
       {
+          printf("seed reset to: %d\n", (int)value);
           instance().seed( value );
+          rand_counter = 0;
           return instance();
       }
 
@@ -81,7 +86,9 @@ irand( int x )
     if ( x <= 1 ) return 0;
 
     std::uniform_int_distribution<> dst( 0, x - 1 );
-    return dst( DefaultRNG::instance() );
+    int result = dst( DefaultRNG::instance() );
+    // printf("[%d][i] %d\n", DefaultRNG::rand_counter++, result);
+    return result;
 }
 
 inline
@@ -92,7 +99,20 @@ drand( double low, double high )
     if ( high - low < 1.0e-10 ) return (low + high) * 0.5;
 
     std::uniform_real_distribution<> rng( low, high );
-    return rng( DefaultRNG::instance() );
+    double result = rng( DefaultRNG::instance() );
+    // cpptrace::generate_trace().print();
+    // auto trace = cpptrace::stacktrace::current();
+    // int count = 0;
+    // for (const auto& frame : trace.frames) {
+    //     if (count >= 5) break;
+        
+    //     // Print the frame using cpptrace's built-in print (or format as you please)
+    //     printf("%s\n", frame.to_string().c_str()) ;
+    //     count++;
+    // }
+
+    // printf("[%d][d] %f\n", DefaultRNG::rand_counter++, result);
+    return result;
 }
 
 inline
@@ -100,6 +120,19 @@ double
 ndrand( double mean, double stddev )
 {
     std::normal_distribution<> rng( mean, stddev );
-    return rng( DefaultRNG::instance() );
+    double result = rng( DefaultRNG::instance() );
+    // printf("[%d][n] %f\n", DefaultRNG::rand_counter++, result);
+    return result;
+}
+
+inline
+double
+brand( double prob )
+{
+    std::bernoulli_distribution rng( prob );
+    double result = rng( DefaultRNG::instance() );
+    // cpptrace::generate_trace().print();
+    // printf("[%d][b] %f\n", DefaultRNG::rand_counter++, result);
+    return result;
 }
 #endif

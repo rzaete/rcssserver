@@ -19,6 +19,8 @@
  *                                                                         *
  ***************************************************************************/
 
+#include "remoteclient.h"
+#include "socketstreambuf.hpp"
 #ifdef HAVE_CONFIG_H
 #include <config.h>
 #endif
@@ -253,6 +255,11 @@ Player::Player( Stadium & stadium,
 
     setPlayerType( 0 );
     recoverAll();
+    char side_c = side() == LEFT ? 'l' : 'r';
+    myname = std::string("p_") + side_c + std::string("_") + std::to_string(unum());
+    // if (myname == "p_l_2")
+    // getSocketBuf().myname = myname;
+    // getSocketBuf().enablePrinting = true;
 }
 
 Player::~Player()
@@ -537,6 +544,9 @@ Player::parseMsg( char * msg,
         }
         command[ len ] = 0;
     }
+
+    // if (myname == "p_l_2")
+    // printf("[recv] %s %s\n", myname.c_str(), msg);
     Logger::instance().writePlayerLog( M_stadium, *this, command, RECV );
 
     /** Call the PlayerCommandParser */
@@ -1634,8 +1644,7 @@ Player::goalieCatch( double dir )
     if ( min_catchable.inArea( rotated_pos ) )
     {
         //success = ( drand( 0, 1 ) <= SP.catchProb() );
-        std::bernoulli_distribution dst( SP.catchProbability() );
-        success = dst( DefaultRNG::instance() );
+        success = brand(SP.catchProbability());
         //std::cerr << M_stadium.time()
         //          << ": goalieCatch min_catchable ok" << std::endl;
     }
@@ -1648,8 +1657,7 @@ Player::goalieCatch( double dir )
         catch_prob = std::min( std::max( 0.0, catch_prob ), 1.0 );
 
         //success = ( drand( 0, 1 ) <= catch_prob );
-        std::bernoulli_distribution dst( catch_prob );
-        success = dst( DefaultRNG::instance() );
+        success = brand(catch_prob);
         //std::cerr << M_stadium.time()
         //          << ": goalieCatch "
         //          << " dir=" << Rad2Deg( normalize_angle( angleBodyCommitted() + NormalizeMoment( dir ) ) )
@@ -2118,9 +2126,7 @@ Player::tackle( double power_or_angle,
 
     if ( prob < 1.0 )
     {
-        std::bernoulli_distribution dst( 1 - prob );
-
-        if ( dst( DefaultRNG::instance() ) )
+        if ( brand( 1 - prob ) )
         {
             M_state |= TACKLE;
 

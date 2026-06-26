@@ -400,7 +400,8 @@ protected:
       {
           if ( prob >= 1.0 ) return true;
           if ( prob <= 0.0 ) return false;
-          return std::bernoulli_distribution( prob )( DefaultRNG::instance() );
+        //   std::cout << "[decide] " << self().myname << " " << prob << std::endl;
+          return brand(prob);
       }
 
 protected:

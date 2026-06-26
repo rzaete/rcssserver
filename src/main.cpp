@@ -60,6 +60,12 @@ main( int argc, char *argv[] )
     std::cout << PACKAGE << "-" << VERSION << "\n\n"
               << Copyright << std::endl;
 
+    std::cout << "Args (" << argc << "):" ;
+    for ( int i = 0; i < argc; ++i )
+    {
+        std::cout << ' ' << argv[i];
+    }
+    std::cout << std::endl;
     if ( ! ServerParam::init( argc, argv ) )
     {
         return 1;
@@ -88,10 +94,12 @@ main( int argc, char *argv[] )
     std::shared_ptr< Timer > timer;
     if ( ServerParam::instance().synchMode() )
     {
+        std::cout << "starting in synch mode" << std::endl;
         timer = std::shared_ptr< Timer >( new SyncTimer( Std ) );
     }
     else
     {
+        std::cout << "starting in standard mode" << std::endl;
         timer = std::shared_ptr< Timer >( new StandardTimer( Std ) );
     }
 

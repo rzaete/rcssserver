@@ -96,6 +96,7 @@ target_link_libraries(RCSSServer
     RCSS::Net
     RCSS::GZ
     ZLIB::ZLIB
+    cpptrace::cpptrace
 	)
 
 target_compile_definitions(RCSSServer

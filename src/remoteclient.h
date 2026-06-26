@@ -25,6 +25,7 @@
 #include "compress.h"
 
 #include <rcss/net/udpsocket.hpp>
+#include <vector>
 
 namespace rcss {
 namespace net {
@@ -53,6 +54,21 @@ private:
     bool M_enforce_dedicated_port;
 
 public:
+    std::string myname;
+    std::vector<std::string> unprocessed_messages;
+
+    rcss::net::SocketStreamBuf & getSocketBuf()
+    {
+        if ( M_socket_buf )
+        {
+            return *M_socket_buf;
+        }
+        else
+        {
+            throw std::logic_error( "Socket Buf is NULL" );
+        }
+    }
+
     RemoteClient();
 
     virtual
@@ -70,6 +86,8 @@ public:
 
     void undedicatedRecv( char * msg,
                           const size_t & len );
+
+    void processUnprocessedMessages();
 
 protected:
     void processMsg( char * msg,
@@ -105,6 +123,11 @@ public:
     rcss::net::Addr getDest() const
       {
           return M_socket.getDest();
+      }
+
+    rcss::net::Socket::SocketDesc getSocketFD() const
+      {
+          return M_socket.isOpen() ? M_socket.getFD() : rcss::net::Socket::INVALIDSOCKET;
       }
 
 };

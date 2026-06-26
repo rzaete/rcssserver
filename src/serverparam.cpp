@@ -324,6 +324,7 @@ const bool ServerParam::S_AUTO_MODE = false;
 const int ServerParam::S_KICK_OFF_WAIT = 100;
 const int ServerParam::S_CONNECT_WAIT = 300;
 const int ServerParam::S_GAME_OVER_WAIT = 100;
+const int ServerParam::S_PRERUN_WAIT = 5; // seconds to wait in prerun before processing init messages (time based)
 
 const std::string ServerParam::S_TEAM_L_START = "";
 const std::string ServerParam::S_TEAM_R_START = "";
@@ -834,6 +835,7 @@ ServerParam::addParams()
     addParam( "kick_off_wait", M_kick_off_wait, "", 9 );
     addParam( "connect_wait", M_connect_wait, "", 9 );
     addParam( "game_over_wait", M_game_over_wait, "", 9 );
+    addParam( "prerun_wait", M_prerun_wait, "", 9 );
 
     addParam( "team_l_start",
               rcss::conf::makeSetter( this, &ServerParam::setTeamLeftStart ),
@@ -959,7 +961,7 @@ ServerParam::addParams()
     addParam( "land_focus_dist_noise_rate", M_land_focus_dist_noise_rate, "", 19 );
 
     // XXX
-    // addParam( "random_seed", M_random_seed, "", 999 );
+    addParam( "random_seed", M_random_seed, "", 999 );
     // addParam( "long_kick_power_factor", M_long_kick_power_factor, "", 999 );
     // addParam( "long_kick_delay", M_long_kick_delay, "", 999 );
 }
@@ -1412,6 +1414,7 @@ ServerParam::setDefaults()
     M_kick_off_wait = S_KICK_OFF_WAIT;
     M_connect_wait = S_CONNECT_WAIT;
     M_game_over_wait = S_GAME_OVER_WAIT;
+    M_prerun_wait = S_PRERUN_WAIT;
 
     M_team_l_start = S_TEAM_L_START;
     M_team_r_start = S_TEAM_R_START;

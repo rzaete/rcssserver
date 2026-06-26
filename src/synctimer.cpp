@@ -31,6 +31,8 @@
 void
 SyncTimer::run()
 {
+    getTimeableRef().myprerun();
+    
     // for explanation different counters, see StandardTimer::run
     // big difference is that the loop is not started when a new signal comes,
     // but rather immediately when the previous loop has ended. Each loop

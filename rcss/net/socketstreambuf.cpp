@@ -80,6 +80,9 @@ SocketStreamBuf::writeData()
         return true;
     }
 
+    if (enablePrinting)
+        printf("[send] %s %.*s\n",myname.c_str(), (int)size, M_outbuf); 
+
     if ( M_socket.isConnected() )
     {
         return M_socket.send( M_outbuf, size ) > 0;

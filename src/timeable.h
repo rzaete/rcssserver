@@ -40,6 +40,7 @@ public:
     bool sendThink()         { return doSendThink();  }
     void quit()              { doQuit();              }
     bool alive() { return isAlive(); }
+    void myprerun()          { doprerun();            }
 
 protected:
 
@@ -53,6 +54,7 @@ protected:
     virtual bool doSendThink()         = 0;
     virtual void doQuit()              = 0;
     virtual bool isAlive() = 0;
+    virtual void doprerun()            = 0;
 };
 
 #endif

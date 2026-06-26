@@ -87,6 +87,30 @@ Socket::Socket( SocketDesc s )
 {
     M_handle = std::shared_ptr< SocketDesc >( new SocketDesc( s ),
                                               Socket::closeFD );
+
+    // Prime peer cache from kernel for pre-connected descriptors (e.g. TCP accept).
+    // One-time cost only; UDP RemoteClients use the explicit connect() path instead.
+    if ( s != Socket::INVALIDSOCKET )
+    {
+        Addr::AddrType name;
+        socklen_t from_len = sizeof( name );
+        int err = ::getpeername( s,
+                                 (struct sockaddr *)&name,
+                                 &from_len );
+#ifdef RCSS_WIN
+        if ( err != SOCKET_ERROR )
+        {
+            M_peer = Addr( name );
+        }
+        // else leave as default Addr() => not connected
+#else
+        if ( err >= 0 )
+        {
+            M_peer = Addr( name );
+        }
+        // else leave as default Addr() => not connected
+#endif
+    }
 }
 
 
@@ -106,6 +130,7 @@ Socket::open()
 
     M_handle = std::shared_ptr< SocketDesc >( new SocketDesc( s ),
                                               Socket::closeFD );
+    M_peer = Addr();  // fresh socket has no peer until connect()
 #ifndef RCSS_WIN
     int err = setCloseOnExec();
     if ( err < 0 )
@@ -192,6 +217,7 @@ Socket::connect( const Addr & addr )
         }
 #endif
 
+        M_peer = addr;
         return true;
     }
     else
@@ -203,36 +229,14 @@ Socket::connect( const Addr & addr )
 Addr
 Socket::getPeer() const
 {
-    if ( isOpen() )
-    {
-        Addr::AddrType name;
-        socklen_t from_len = sizeof( name );
-        int err = ::getpeername( getFD(),
-                                 (struct sockaddr *)&name,
-                                 &from_len );
-#ifdef RCSS_WIN
-        if ( err == SOCKET_ERROR )
-        {
-            return Addr();
-        }
-#else
-        if ( err < 0 )
-        {
-            return Addr();
-        }
-#endif
-        return Addr( name );
-    }
-    else
-    {
-        return Addr();
-    }
+    return isOpen() ? M_peer : Addr();
 }
 
 void
 Socket::close()
 {
     M_handle.reset();
+    M_peer = Addr();
 }
 
 int
@@ -350,7 +354,7 @@ Socket::isOpen() const
 bool
 Socket::isConnected() const
 {
-    return getPeer() != Addr();
+    return isOpen() && (M_peer != Addr());
 }
 
 Addr

@@ -79,7 +79,7 @@ Monitor::Monitor( Stadium & stadium,
       M_team_l_pen_taken( 0 ),
       M_team_r_pen_taken( 0 )
 {
-
+    myname = "m";
 }
 
 Monitor::~Monitor()

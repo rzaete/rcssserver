@@ -809,11 +809,8 @@ Referee::checkFoul( const Player & tackler,
     bool yellow_card = false;
     bool red_card = false;
 
-    std::bernoulli_distribution dst( tackler.foulDetectProbability() );
-
     // 2011-05-14 akiyama
     // added red card probability
-    std::bernoulli_distribution red_dst( ServerParam::instance().redCardProbability() );
 
     const double ball_dist2 = tackler.pos().distance2( M_stadium.ball().pos() );
     const double ball_angle = ( M_stadium.ball().pos() - tackler.pos() ).th();
@@ -835,7 +832,7 @@ Referee::checkFoul( const Player & tackler,
             p->setFoulCharged();
 
             //std::cerr << "---->" << p->unum() << " intentional foul. prob=" << rng.p() << std::endl;
-            if ( dst( DefaultRNG::instance() ) )
+            if ( brand(tackler.foulDetectProbability()) )
             {
                 //std::cerr << "----> " << p->unum() << " detected intentional foul." << std::endl;
                 pre_check = true;
@@ -883,7 +880,7 @@ Referee::checkFoul( const Player & tackler,
             {
                 //std::cerr << "----> " << p->unum() << " detected yellow_card." << std::endl;
                 yellow_card = true;
-                if ( red_dst( DefaultRNG::instance() ) )
+                if ( brand(ServerParam::instance().redCardProbability()) )
                 {
                     yellow_card = false;
                     red_card = true;
@@ -892,11 +889,11 @@ Referee::checkFoul( const Player & tackler,
         }
         else
         {
-            if ( dst( DefaultRNG::instance() ) )
+            if ( brand(tackler.foulDetectProbability()) )
             {
                 //std::cerr << "----> " << p->unum() << " detected foul. prob=" << rng.p() << std::endl;
                 foul_charge = true;
-                if ( red_dst( DefaultRNG::instance() ) )
+                if ( brand(ServerParam::instance().redCardProbability()) )
                 {
                     yellow_card = true;
                 }

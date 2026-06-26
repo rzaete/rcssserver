@@ -19,11 +19,16 @@
  *                                                                         *
  ***************************************************************************/
 
+#include "stdtimer.h"
 #ifdef HAVE_CONFIG_H
 #include <config.h>
 #endif
 
 #include "stadium.h"
+
+#if defined (HAVE_POLL_H)
+#include <poll.h>
+#endif
 
 #include "audio.h"
 #include "coach.h"
@@ -789,6 +794,21 @@ Stadium::initOnlineCoach( const char * teamname,
 void
 Stadium::step()
 {
+    for (auto p : M_remote_players) {
+        p->processUnprocessedMessages();
+    }
+
+    for (auto m : M_monitors) {
+        m->processUnprocessedMessages();
+    }
+
+    for (auto c : M_remote_online_coaches) {
+        c->processUnprocessedMessages();
+    }
+
+    for (auto c : M_remote_offline_coaches) {
+        c->processUnprocessedMessages();
+    }
     //
     // apply command effects
     // reset command flags
@@ -901,8 +921,8 @@ Stadium::step()
 void
 Stadium::turnMovableObjects()
 {
-    std::shuffle( M_movable_objects.begin(), M_movable_objects.end(),
-                  DefaultRNG::instance() );
+    // std::shuffle( M_movable_objects.begin(), M_movable_objects.end(),
+    //               DefaultRNG::instance() );
     for ( MPObjectCont::reference o : M_movable_objects )
     {
         o->_turn();
@@ -912,8 +932,8 @@ Stadium::turnMovableObjects()
 void
 Stadium::incMovableObjects()
 {
-    std::shuffle( M_movable_objects.begin(), M_movable_objects.end(),
-                  DefaultRNG::instance() );
+    // std::shuffle( M_movable_objects.begin(), M_movable_objects.end(),
+    //               DefaultRNG::instance() );
     for ( MPObjectCont::reference o : M_movable_objects )
     {
         if ( o->isEnabled() )
@@ -2049,8 +2069,8 @@ Stadium::removeDisconnectedClients()
 void
 Stadium::sendRefereeAudio( const char * msg )
 {
-    std::shuffle( M_listeners.begin(), M_listeners.end(),
-                  DefaultRNG::instance() );
+    // std::shuffle( M_listeners.begin(), M_listeners.end(),
+    //               DefaultRNG::instance() );
 
     // the following should work, but I haven't tested it yet
     //      std::for_each( M_listeners.begin(), M_listeners.end(),
@@ -2084,8 +2104,8 @@ void
 Stadium::sendPlayerAudio( const Player & player,
                           const char * msg )
 {
-    std::shuffle( M_listeners.begin(), M_listeners.end(),
-                  DefaultRNG::instance() );
+    // std::shuffle( M_listeners.begin(), M_listeners.end(),
+    //               DefaultRNG::instance() );
 
     for ( ListenerCont::reference l : M_listeners )
     {
@@ -2115,8 +2135,8 @@ void
 Stadium::sendCoachAudio( const Coach & coach,
                          const char * msg )
 {
-    std::shuffle( M_listeners.begin(), M_listeners.end(),
-                  DefaultRNG::instance() );
+    // std::shuffle( M_listeners.begin(), M_listeners.end(),
+    //               DefaultRNG::instance() );
 
     for ( ListenerCont::reference l : M_listeners )
     {
@@ -2151,8 +2171,8 @@ void
 Stadium::sendCoachStdAudio( const OnlineCoach & coach,
                             const rcss::clang::Msg & msg )
 {
-    std::shuffle( M_listeners.begin(), M_listeners.end(),
-                  DefaultRNG::instance() );
+    // std::shuffle( M_listeners.begin(), M_listeners.end(),
+    //               DefaultRNG::instance() );
 
     for ( ListenerCont::reference l : M_listeners )
     {
@@ -2186,6 +2206,164 @@ Stadium::sendCoachStdAudio( const OnlineCoach & coach,
 
 }
 
+void
+Stadium::doprerun()
+{
+    std::cout << "prerun: waiting for all clients to connect" << std::endl;
+    struct RecvMessage {
+        std::string message;
+        rcss::net::Addr cli_addr;
+    };
+
+    std::vector<RecvMessage> player_messages;
+    std::vector<RecvMessage> coach_messages;
+    std::vector<RecvMessage> trainer_messages;
+
+    const bool allow_trainer = ( ServerParam::instance().coachMode()
+                               || ServerParam::instance().coachWithRefereeMode() );
+
+    // long retry_counter = 0;
+    std::chrono::system_clock::time_point start_time = std::chrono::system_clock::now();
+    std::chrono::system_clock::time_point last_message_time = std::chrono::system_clock::now();
+
+    const std::chrono::seconds prerun_wait_sec( std::max( 0, ServerParam::instance().prerunWait() ) );
+
+    while ( alive() && playmode() == PM_BeforeKickOff )
+    {
+        // receive available messages in this iteration
+        // after receiving, we decide below whether to continue based on time
+
+        char message[MaxMesg];
+        std::memset( &message, 0, sizeof( char ) * MaxMesg );
+
+        rcss::net::Addr cli_addr;
+
+        int len = M_player_socket.recv( message, MaxMesg, cli_addr );
+
+        if ( len > 0 )
+        {
+            // std::cout << "[" << retry_counter << "] " << message << std::endl;
+
+            // a new monitor or a new player
+
+            /* chop newline */
+            if ( message[len - 1] == '\n' )
+            {
+                --len;
+            }
+            message[len] = '\0';
+
+            RecvMessage detail = {message, cli_addr};
+            player_messages.push_back(detail);
+            last_message_time = std::chrono::system_clock::now();
+        }
+        else if ( errno != EWOULDBLOCK )
+        {
+            std::cerr << __FILE__ << ": " << __LINE__
+                      << ": Error recv'ing from player socket: "
+                      << std::strerror( errno ) << std::endl;
+        }
+        
+        char messagec[MaxMesg];
+        std::memset( &messagec, 0, sizeof( char ) * MaxMesg );
+
+        rcss::net::Addr cli_addrc;
+
+        int lenc = M_online_coach_socket.recv( messagec, MaxMesg, cli_addrc );
+
+        if ( lenc > 0 )
+        {
+            // std::cout << "[" << retry_counter << "]c " << messagec << std::endl;
+            // a new online coach
+
+            /* chop newline */
+            if ( messagec[lenc - 1] == '\n' )
+            {
+                --lenc;
+            }
+            messagec[lenc] = '\0';
+
+            RecvMessage detailc = {messagec, cli_addrc};
+            coach_messages.push_back(detailc);
+            last_message_time = std::chrono::system_clock::now();
+        }
+        else if ( errno != EWOULDBLOCK )
+        {
+            std::cerr << __FILE__ << ": " << __LINE__
+                      << ": Error recv'ing from coach socket: "
+                      << strerror( errno ) << std::endl;
+        }
+
+        char messaget[MaxMesg];
+        std::memset( &messaget, 0, sizeof( char ) * MaxMesg );
+
+        rcss::net::Addr cli_addrt;
+
+        int lent = M_offline_coach_socket.recv( messaget, MaxMesg,  cli_addrt );
+
+        if ( lent > 0 )
+        {
+            if ( ! allow_trainer )
+            {
+                sendToCoach( "(error connected_offline_coach_without_coach_mode)", cli_addrt );
+                continue;
+            }
+
+            // chop newline
+            if ( messaget[lent - 1] == '\n' )
+            {
+                --lent;
+            }
+            messaget[lent] = '\0';
+
+            RecvMessage detailt = {messaget, cli_addrt};
+            trainer_messages.push_back(detailt);
+            last_message_time = std::chrono::system_clock::now();
+
+        }
+        else if ( errno != EWOULDBLOCK )
+        {
+            std::cerr << __FILE__ << ": " << __LINE__
+                      << ": Error recv'ing from socket: "
+                      << strerror( errno ) << std::endl;
+        }
+
+        // retry_counter++;
+
+        if ( prerun_wait_sec.count() == 0 )
+            break;
+
+        if ( std::chrono::duration_cast< std::chrono::seconds >(
+                 std::chrono::system_clock::now() - start_time ) >= prerun_wait_sec )
+        {
+            break;
+        }
+    }
+
+    if (!alive())
+        return;
+
+    for (auto r : player_messages) {
+        std::cout << "[parse player] " << r.message << std::endl;
+        if ( ! parseMonitorInit( r.message.c_str(), r.cli_addr ) ) {
+            parsePlayerInit( r.message.c_str(), r.cli_addr );
+        }
+    }
+
+    for (auto r : coach_messages) {
+        std::cout << "[parse coach] " << r.message << std::endl;
+        parseOnlineCoachInit( r.message.c_str(), r.cli_addr );
+    }
+
+    for (auto r : trainer_messages) {
+        std::cout << "[parse trainer] " << r.message << std::endl;
+        parseCoachInit( r.message.c_str(), r.cli_addr );
+    }
+
+    const std::chrono::milliseconds elapsed = std::chrono::duration_cast< std::chrono::milliseconds >( std::chrono::system_clock::now() - start_time );
+    const std::chrono::milliseconds elapsed_last_message = std::chrono::duration_cast< std::chrono::milliseconds >( last_message_time - start_time );
+    std::cout << "prerun: last message received in " << elapsed_last_message.count() << " ms, finished in " << elapsed.count() << " ms" << std::endl;
+}
 
 void
 Stadium::doRecvFromClients()
@@ -2204,8 +2382,8 @@ Stadium::doRecvFromClients()
         s_time = M_time;
         s_stoppage_time = M_stoppage_time;
 
-        std::shuffle( M_shuffle_players.begin(), M_shuffle_players.end(),
-                      DefaultRNG::instance() );
+        // std::shuffle( M_shuffle_players.begin(), M_shuffle_players.end(),
+        //               DefaultRNG::instance() );
         for ( PlayerCont::reference p : M_shuffle_players )
         {
             p->doLongKick();
@@ -2254,8 +2432,8 @@ Stadium::doSendSenseBody()
 {
     const std::chrono::system_clock::time_point start_time = std::chrono::system_clock::now();
 
-    std::shuffle( M_remote_players.begin(), M_remote_players.end(),
-                  DefaultRNG::instance() );
+    // std::shuffle( M_remote_players.begin(), M_remote_players.end(),
+    //               DefaultRNG::instance() );
 
     //
     // send sense_body & fullstate
@@ -2302,8 +2480,8 @@ Stadium::doSendVisuals()
 {
     const std::chrono::system_clock::time_point start_time = std::chrono::system_clock::now();
 
-    std::shuffle( M_remote_players.begin(), M_remote_players.end(),
-                  DefaultRNG::instance() );
+    // std::shuffle( M_remote_players.begin(), M_remote_players.end(),
+    //               DefaultRNG::instance() );
 
     for ( PlayerCont::reference p : M_remote_players )
     {
@@ -2323,8 +2501,8 @@ Stadium::doSendSynchVisuals()
 {
     const std::chrono::system_clock::time_point start_time = std::chrono::system_clock::now();
 
-    std::shuffle( M_remote_players.begin(), M_remote_players.end(),
-                  DefaultRNG::instance() );
+    // std::shuffle( M_remote_players.begin(), M_remote_players.end(),
+    //               DefaultRNG::instance() );
 
     for ( PlayerCont::reference p : M_remote_players )
     {
@@ -2432,7 +2610,7 @@ Stadium::doSendThink()
         wait_coach[i] = M_olcoaches[i]->isEyeOn();
     }
 
-    bool wait_trainer = M_coach->isEyeOn();
+    bool wait_trainer = M_coach->connected();
 
     //tell the clients they should start thinking
     for ( int i = 0; i < MAX_PLAYER*2; ++i )
@@ -2455,6 +2633,10 @@ Stadium::doSendThink()
          && M_coach->connected() )
     {
         M_coach->send( think_command );
+        std::chrono::milliseconds elapsed_since_last_think = std::chrono::duration_cast< std::chrono::milliseconds >( std::chrono::system_clock::now() - trainer_last_think_ts );
+        if (time() > 0 && elapsed_since_last_think.count() > 800)
+            std::cout << "elapsed ms since last trainer think  " << elapsed_since_last_think.count() << " ms at cycle " << time() << std::endl;
+        trainer_last_think_ts = std::chrono::system_clock::now();
     }
 
     //wait for confirmations from the clients
@@ -2463,20 +2645,84 @@ Stadium::doSendThink()
         DS_FALSE = 0,
         DS_TRUE = 1,
         DS_TRUE_BUT_INCOMPLETE = 2
-    } done;
+    } player_done, coach_done, trainer_done;
 
-    int num_sleeps = 0;
+    int num_wakeups = 0;
 
     const std::chrono::system_clock::time_point start_time = std::chrono::system_clock::now();
 
     do
     {
-        done = DS_TRUE;
-        ++num_sleeps;
+        player_done = DS_TRUE;
+        coach_done = DS_TRUE;
+        trainer_done = DS_TRUE;
+        ++num_wakeups;
 
-        std::chrono::microseconds sleep_count( ServerParam::instance().synchMicroSleep() );
-        std::this_thread::sleep_for( sleep_count );
-        //usleep( ServerParam::instance().synchMicroSleep() );
+        // Use poll() on the sockets of clients we are waiting for (plus the
+        // three shared UDP sockets) with a deadline-based timeout. This
+        // replaces the previous 1us micro-sleep + unconditional recv loop.
+        {
+            std::chrono::microseconds sleep_count( ServerParam::instance().synchMicroSleep() );
+#if defined (HAVE_POLL_H)
+            std::vector<pollfd> pfds;
+            // Always include the shared sockets so we wake for any traffic
+            // (including undedicated-port or coach/trainer init paths).
+            if ( M_player_socket.isOpen() )
+                pfds.push_back( { M_player_socket.getFD(), POLLIN | POLLPRI, 0 } );
+            if ( M_offline_coach_socket.isOpen() )
+                pfds.push_back( { M_offline_coach_socket.getFD(), POLLIN | POLLPRI, 0 } );
+            if ( M_online_coach_socket.isOpen() )
+                pfds.push_back( { M_online_coach_socket.getFD(), POLLIN | POLLPRI, 0 } );
+
+            // Dedicated sockets for the clients we sent (think) to.
+            for ( int i = 0; i < MAX_PLAYER*2; ++i )
+            {
+                if ( wait_players[i]
+                     && M_players[i]->connected()
+                     && M_players[i]->isEnabled() )
+                {
+                    rcss::net::Socket::SocketDesc fd = M_players[i]->getSocketFD();
+                    if ( fd != rcss::net::Socket::INVALIDSOCKET )
+                        pfds.push_back( { (int)fd, POLLIN | POLLPRI, 0 } );
+                }
+            }
+            for ( int i = 0; i < 2; ++i )
+            {
+                if ( wait_coach[i]
+                     && M_olcoaches[i]->connected()
+                     && M_olcoaches[i]->assigned() )
+                {
+                    rcss::net::Socket::SocketDesc fd = M_olcoaches[i]->getSocketFD();
+                    if ( fd != rcss::net::Socket::INVALIDSOCKET )
+                        pfds.push_back( { (int)fd, POLLIN | POLLPRI, 0 } );
+                }
+            }
+            if ( wait_trainer && M_coach->connected() )
+            {
+                rcss::net::Socket::SocketDesc fd = M_coach->getSocketFD();
+                if ( fd != rcss::net::Socket::INVALIDSOCKET )
+                    pfds.push_back( { (int)fd, POLLIN | POLLPRI, 0 } );
+            }
+
+            if ( ! pfds.empty() )
+            {
+                // remaining time until we must stop waiting (in milliseconds)
+                const std::chrono::nanoseconds nano_diff =
+                    std::chrono::duration_cast< std::chrono::nanoseconds >(
+                        std::chrono::system_clock::now() - start_time );
+                const double cur_td = nano_diff.count() * 0.001 * 0.001;
+                int ptimeout = std::max( 1, static_cast<int>( max_msec_waited - cur_td ) );
+                poll( pfds.data(), pfds.size(), ptimeout );
+            }
+            else
+            {
+                std::this_thread::sleep_for( sleep_count );
+            }
+#else
+            std::this_thread::sleep_for( sleep_count );
+            //usleep( ServerParam::instance().synchMicroSleep() );
+#endif
+        }
 
         doRecvFromClients();
 
@@ -2487,7 +2733,7 @@ Stadium::doSendThink()
                  && ! M_players[i]->doneReceived()
                  && M_players[i]->isEnabled() )
             {
-                done = DS_FALSE;
+                player_done = DS_FALSE;
                 break;
             }
         }
@@ -2499,7 +2745,7 @@ Stadium::doSendThink()
                  && ! M_olcoaches[i]->doneReceived()
                  && M_olcoaches[i]->assigned() )
             {
-                done = DS_FALSE;
+                coach_done = DS_FALSE;
                 break;
             }
         }
@@ -2508,7 +2754,7 @@ Stadium::doSendThink()
              && M_coach->connected()
              && ! M_coach->doneReceived() )
         {
-            done = DS_FALSE;
+            trainer_done = DS_FALSE;
         }
 
         // get time differnce with start of loop, first get time difference in
@@ -2518,22 +2764,29 @@ Stadium::doSendThink()
 
         if ( time_diff > max_msec_waited )
         {
-            done = DS_TRUE_BUT_INCOMPLETE;
             if ( time() > 0 )
             {
                 ++cycles_missed;
-                std::cerr << "Someone missed a cycle at " << time() << std::endl;
+                if (player_done == DS_FALSE)
+                    std::cerr << "A player missed a cycle at " << time() << std::endl;
+                if (coach_done == DS_FALSE)
+                    std::cerr << "A coach missed a cycle at " << time() << std::endl;
+                if (trainer_done == DS_FALSE)
+                    std::cerr << "A trainer missed a cycle at " << time() << std::endl;
             }
             if ( cycles_missed > max_cycles_missed )
             {
                 std::cerr << "Waiting too long for clients! Exiting" << std::endl;
                 shutdown = true;
             }
+            player_done = DS_TRUE_BUT_INCOMPLETE;
+            coach_done = DS_TRUE_BUT_INCOMPLETE;
+            trainer_done = DS_TRUE_BUT_INCOMPLETE;
         }
     }
-    while ( done == DS_FALSE );
+    while ( player_done == DS_FALSE || coach_done == DS_FALSE || trainer_done == DS_FALSE );
 
-    if ( done != DS_TRUE_BUT_INCOMPLETE )
+    if ( player_done != DS_TRUE_BUT_INCOMPLETE && coach_done != DS_TRUE_BUT_INCOMPLETE && trainer_done != DS_TRUE_BUT_INCOMPLETE )
     {
         cycles_missed = 0;
     }
@@ -2541,7 +2794,7 @@ Stadium::doSendThink()
     if ( ServerParam::instance().logTimes() )
     {
         char buf[128];
-        snprintf( buf, 127, "Num sleeps called: %d", num_sleeps );
+        snprintf( buf, 127, "Num wakeups: %d", num_wakeups );
         Logger::instance().writeTextLog( *this, buf, LOG_TEXT );
     }
 
@@ -2560,8 +2813,8 @@ template < class T >
 void
 recv_from_clients( std::vector< T > & clients )
 {
-    std::shuffle( clients.begin(), clients.end(),
-                  DefaultRNG::instance() );
+    // std::shuffle( clients.begin(), clients.end(),
+    //               DefaultRNG::instance() );
 
     for ( typename std::vector< T >::iterator i = clients.begin();
           i != clients.end(); )
@@ -2725,7 +2978,7 @@ Stadium::parsePlayerInit( const char * message,
         Player * p = initPlayer( teamname, version, goalie, cli_addr );
         if ( p )
         {
-            std::cout << "A new (v" << static_cast< int >( version ) << ") "
+            std::cout << "[" << StandardTimer::mycounter << "] " << "A new (v" << static_cast< int >( version ) << ") "
                       << "player (" << teamname << ' ' << p->unum() << ") connected."
                       << std::endl;
 

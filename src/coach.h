@@ -117,10 +117,19 @@ public:
           return M_version;
       }
 
-    bool doneReceived() const
-      {
-          return M_done_received;
+    bool doneReceived() const {
+      if (M_done_received)
+        return M_done_received;
+
+      bool found = false;
+      for (const std::string &str : unprocessed_messages) {
+        if (str.find("(done)") != std::string::npos) {
+          found = true;
+          break; // Stop looping early to save performance
+        }
       }
+      return found;
+    }
 
 private:
     int parse_change_mode( const char * command );

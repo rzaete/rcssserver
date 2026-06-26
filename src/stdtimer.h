@@ -45,6 +45,8 @@ public:
 
     void run() override;
 
+    static inline int mycounter = 0;
+
 };
 
 #endif

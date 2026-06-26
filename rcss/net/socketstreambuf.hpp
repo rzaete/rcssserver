@@ -80,6 +80,9 @@ public:
           M_connect = conn;
       }
 
+    bool enablePrinting = false;
+    std::string myname = "";
+
 private:
 
     bool writeData();

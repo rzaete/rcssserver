@@ -394,7 +394,19 @@ public:
     //
     // command state
     //
-    bool doneReceived() const { return M_done_received; }
+    bool doneReceived() const { 
+        if (M_done_received)
+            return M_done_received; 
+
+        bool found = false;
+        for (const std::string& str : unprocessed_messages) {
+            if (str.find("(done)") != std::string::npos) { 
+                found = true;
+                break; // Stop looping early to save performance
+            }
+        }
+        return found;
+    }
 
     bool kicked() const { return M_kick_cycles >= 0; }
     bool dashed() const { return M_dash_cycles >= 0; }

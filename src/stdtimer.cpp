@@ -46,6 +46,8 @@ StandardTimer::StandardTimer( Timeable & timeable )
 void
 StandardTimer::run()
 {
+    getTimeableRef().myprerun();
+    
     double lcmt = 0.0;
 
     // the sequence of messages will always repeat itself after lcm_st ms.
@@ -165,6 +167,8 @@ StandardTimer::run()
             lcmt = 0;
             c_synch_see = 1;
         }
+
+        mycounter++;
     }
 
     getTimeableRef().quit();

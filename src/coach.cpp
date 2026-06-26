@@ -94,7 +94,8 @@ Coach::Coach( Stadium & stadium )
       M_version( 0.0 ),
       M_done_received( false )
 {
-
+    char side_c = side() == LEFT ? 'l' : 'r';
+    myname = std::string("t_") + side_c;
 }
 
 Coach::~Coach()
@@ -966,6 +967,8 @@ OnlineCoach::OnlineCoach( Stadium & stadium,
     M_del_messages_left = -1;
     M_rule_messages_left = -1;
     M_msg_left_update_time = -1;
+    char side_c = side() == LEFT ? 'l' : 'r';
+    myname = std::string("c_") + side_c;
 }
 
 OnlineCoach::~OnlineCoach()

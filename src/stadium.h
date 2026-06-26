@@ -38,6 +38,7 @@
 #include <vector>
 #include <list>
 #include <memory>
+#include <chrono>
 
 class HeteroPlayer;
 class XPMHolder;
@@ -83,6 +84,7 @@ protected:
     void doSendCoachMessages() override;
     bool doSendThink() override;
     void doQuit() override;
+    void doprerun() override;
 
 protected:
     bool M_alive;
@@ -137,6 +139,8 @@ protected:
     std::time_t M_start_time;
 
     std::list< ResultSaver::Ptr > M_savers;
+
+    std::chrono::system_clock::time_point trainer_last_think_ts;
 
 public:
 

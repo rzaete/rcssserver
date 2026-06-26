@@ -304,6 +304,7 @@ private:
     static const int S_KICK_OFF_WAIT;
     static const int S_CONNECT_WAIT;
     static const int S_GAME_OVER_WAIT;
+    static const int S_PRERUN_WAIT;
 
     static const std::string S_TEAM_L_START;
     static const std::string S_TEAM_R_START;
@@ -567,6 +568,7 @@ private:
     int M_kick_off_wait;
     int M_connect_wait;
     int M_game_over_wait;
+    int M_prerun_wait;
 
     std::string M_team_l_start;
     std::string M_team_r_start;
@@ -932,6 +934,7 @@ public:
     int kickOffWait() const { return M_kick_off_wait; }
     int connectWait() const { return M_connect_wait; }
     int gameOverWait() const { return M_game_over_wait; }
+    int prerunWait() const { return M_prerun_wait; }
     const std::string & teamLeftStart() const { return M_team_l_start; }
     const std::string & teamRightStart() const { return M_team_r_start; }
 
